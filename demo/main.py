@@ -103,6 +103,22 @@ def decode_base64_to_image(encoded_string):
     return image
 
 
+def decode_data(encoded_frames: list) -> list:
+    frames = []
+    for frame in encoded_frames:
+        frames.append(decode_base64_to_image(frame))
+        
+    return frames
+
+
+
+def save_frames(frames: list, save_dir: str):
+    i = 0
+    for frame in frames:
+        cv2.imwrite(f'{save_dir}/frame_{0}.jpg', frame)
+        i+=1
+
+
 
 config = 'configs/skeleton/custom_skeleton.py'
 checkpoint = 'checkpoints\posec3d_run1.pth'
@@ -127,6 +143,7 @@ app = FastAPI()
 
 
 
+
 @app.post("/adl-agitation-inference")
 async def main(data: dict):
     
@@ -134,14 +151,21 @@ async def main(data: dict):
     #args = parse_args()
     
 
-    # modify the paths etc
+    
     
     tmp_dir = tempfile.TemporaryDirectory()
+    tmp_dir_path = tmp_dir.name
+    
+    frames = decode_data(data['encoded_frames'])
+    
+    save_frames(frames, tmp_dir_path)
     #frame_paths, frames = frame_extract(args.video, args.short_side,
     #                                    tmp_dir.name)
 
-    frame_paths, frames = frame_extract('checkpoints/test_frames')
+    frame_paths, frames = frame_extract(tmp_dir_path)
     num_frame = len(frame_paths)
+    
+    print(num_frame)
     h, w, _ = frames[0].shape
     
     import time
@@ -199,6 +223,8 @@ async def main(data: dict):
 
     print(time.time() - start_time_model)
 
+    
+    tmp_dir.cleanup()
 
 
     return 200
