@@ -1,0 +1,25 @@
+drink water
+eat meal/snack
+throw
+sitting down 
+standing up
+wear jacket
+take off jacket
+kicking something
+sneeze/cough
+falling
+touch head (headache)
+touch chest (stomachace/heart pain)
+touch back (backache)
+touch neck (neckache)
+nausea or vomiting condition
+punching/slapping other person
+kicking other person
+pushing other person
+lie
+sit
+stand
+lie to sit
+sit to lie
+left turn
+right turn
