@@ -115,7 +115,7 @@ def decode_data(encoded_frames: list) -> list:
 def save_frames(frames: list, save_dir: str):
     i = 0
     for frame in frames:
-        cv2.imwrite(f'{save_dir}/frame_{0}.jpg', frame)
+        cv2.imwrite(f'{save_dir}/frame_{i}.jpg', frame)
         i+=1
 
 
