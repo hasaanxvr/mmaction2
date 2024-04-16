@@ -133,8 +133,12 @@ pose_checkpoint = ('https://download.openmmlab.com/mmpose/top_down/hrnet/'
                  'hrnet_w32_coco_256x192-c78dce93_20200708.pth')
 det_score_thr = 0.9
 
-label_map = 'tools/data/skeleton/label_map_custom.txt'
+label_map_path = 'tools/data/skeleton/label_map_custom.txt'
 device = 'cpu'
+
+
+
+label_map = [x.strip() for x in open(label_map_path).readlines()]
 
 
 from fastapi import FastAPI, HTTPException
@@ -219,7 +223,9 @@ async def main(data: dict):
 
 
     result = inference_recognizer(model, fake_anno)
-    print(result)
+    
+    max_pred_index = result.pred_score.argmax().item()
+    action_label = label_map[max_pred_index]
 
     print(time.time() - start_time_model)
 
