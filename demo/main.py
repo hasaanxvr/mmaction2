@@ -11,7 +11,7 @@ from mmengine import DictAction
 from mmaction.apis import (detection_inference, inference_recognizer,
                            init_recognizer, pose_inference)
 
-
+"""
 def parse_args():
     parser = argparse.ArgumentParser(description='MMAction2 demo')
     parser.add_argument('video', help='video file/url')
@@ -79,7 +79,7 @@ def parse_args():
         "'--cfg-options model.backbone.depth=18 model.backbone.with_cp=True'")
     args = parser.parse_args()
     return args
-
+"""
 def frame_extract(folder_path):
     files = os.listdir(folder_path)
     frame_paths = []
@@ -120,8 +120,8 @@ def save_frames(frames: list, save_dir: str):
 
 
 
-config = 'configs/skeleton/custom_skeleton.py'
-checkpoint = 'checkpoints\posec3d_run1.pth'
+config_path = 'configs/skeleton/posec3d/custom_skeleton.py'
+checkpoint = 'checkpoints/posec3d_run1.pth'
 det_config = 'demo/demo_configs/faster-rcnn_r50_fpn_2x_coco_infer.py'
 det_checkpoint = ('http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/'
                  'faster_rcnn_r50_fpn_2x_coco/'
@@ -210,7 +210,7 @@ async def main(data: dict):
     fake_anno['keypoint'] = keypoint.transpose((1, 0, 2, 3))
     fake_anno['keypoint_score'] = keypoint_score.transpose((1, 0, 2))
 
-    config = mmengine.Config.fromfile(config)
+    config = mmengine.Config.fromfile(config_path)
     #config.merge_from_dict(cfg_options)
 
 
