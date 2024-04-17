@@ -11,75 +11,12 @@ from mmengine import DictAction
 from mmaction.apis import (detection_inference, inference_recognizer,
                            init_recognizer, pose_inference)
 
-"""
-def parse_args():
-    parser = argparse.ArgumentParser(description='MMAction2 demo')
-    parser.add_argument('video', help='video file/url')
-    parser.add_argument('out_filename', help='output filename')
-    parser.add_argument(
-        '--config',
-        default=('configs/skeleton/posec3d/'
-                 'slowonly_r50_8xb16-u48-240e_ntu60-xsub-keypoint.py'),
-        help='skeleton model config file path')
-    parser.add_argument(
-        '--checkpoint',
-        default=('https://download.openmmlab.com/mmaction/skeleton/posec3d/'
-                 'slowonly_r50_u48_240e_ntu60_xsub_keypoint/'
-                 'slowonly_r50_u48_240e_ntu60_xsub_keypoint-f3adabf1.pth'),
-        help='skeleton model checkpoint file/url')
-    parser.add_argument(
-        '--det-config',
-        default='demo/demo_configs/faster-rcnn_r50_fpn_2x_coco_infer.py',
-        help='human detection config file path (from mmdet)')
-    parser.add_argument(
-        '--det-checkpoint',
-        default=('http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/'
-                 'faster_rcnn_r50_fpn_2x_coco/'
-                 'faster_rcnn_r50_fpn_2x_coco_'
-                 'bbox_mAP-0.384_20200504_210434-a5d8aa15.pth'),
-        help='human detection checkpoint file/url')
-    parser.add_argument(
-        '--det-score-thr',
-        type=float,
-        default=0.9,
-        help='the threshold of human detection score')
-    parser.add_argument(
-        '--det-cat-id',
-        type=int,
-        default=0,
-        help='the category id for human detection')
-    parser.add_argument(
-        '--pose-config',
-        default='demo/demo_configs/'
-        'td-hm_hrnet-w32_8xb64-210e_coco-256x192_infer.py',
-        help='human pose estimation config file path (from mmpose)')
-    parser.add_argument(
-        '--pose-checkpoint',
-        default=('https://download.openmmlab.com/mmpose/top_down/hrnet/'
-                 'hrnet_w32_coco_256x192-c78dce93_20200708.pth'),
-        help='human pose estimation checkpoint file/url')
-    parser.add_argument(
-        '--label-map',
-        default='tools/data/skeleton/label_map_ntu60.txt',
-        help='label map file')
-    parser.add_argument(
-        '--device', type=str, default='cuda:0', help='CPU/CUDA device option')
-    parser.add_argument(
-        '--short-side',
-        type=int,
-        default=480,
-        help='specify the short-side length of the image')
-    parser.add_argument(
-        '--cfg-options',
-        nargs='+',
-        action=DictAction,
-        default={},
-        help='override some settings in the used config, the key-value pair '
-        'in xxx=yyy format will be merged into config file. For example, '
-        "'--cfg-options model.backbone.depth=18 model.backbone.with_cp=True'")
-    args = parser.parse_args()
-    return args
-"""
+
+from fastapi import FastAPI, HTTPException
+import time
+app = FastAPI()
+
+# ------------------------------------------------------------------
 def frame_extract(folder_path):
     files = os.listdir(folder_path)
     frame_paths = []
@@ -93,7 +30,7 @@ def frame_extract(folder_path):
     return frame_paths, frames
 
 
-
+# -----------------------------------------------------------------
 
 def decode_base64_to_image(encoded_string):
     decoded_data = base64.b64decode(encoded_string)
@@ -102,6 +39,7 @@ def decode_base64_to_image(encoded_string):
     
     return image
 
+# -----------------------------------------------------------------
 
 def decode_data(encoded_frames: list) -> list:
     frames = []
@@ -111,7 +49,7 @@ def decode_data(encoded_frames: list) -> list:
     return frames
 
 
-
+# ----------------------------------------------------------------
 def save_frames(frames: list, save_dir: str):
     i = 0
     for frame in frames:
@@ -141,38 +79,36 @@ device = 'cpu'
 label_map = [x.strip() for x in open(label_map_path).readlines()]
 
 
-from fastapi import FastAPI, HTTPException
-app = FastAPI()
-
-
-
-
 
 @app.post("/adl-agitation-inference")
 async def main(data: dict):
     
-
-    #args = parse_args()
-    
-
-    
-    
+    #create a temporary directory to store the frames
     tmp_dir = tempfile.TemporaryDirectory()
     tmp_dir_path = tmp_dir.name
     
-    frames = decode_data(data['encoded_frames'])
+    #decode the frames from base64 string to np array
     
+    num_frames = len(data['encoded_frames'])
+    if len(num_frames) == 0:
+        raise HTTPException(status_code=400, detail='Encoded Frames were not found. Length of the received frames is 0')
+    
+    
+    try:
+        frames = decode_data(data['encoded_frames'])
+    except:
+        raise HTTPException(status_code=422, detail='Could not decode the strings received. Please ensure that the sent strings are encoded properly')
+    
+    #save the frame to tmp_dir
     save_frames(frames, tmp_dir_path)
-    #frame_paths, frames = frame_extract(args.video, args.short_side,
-    #                                    tmp_dir.name)
-
+   
+    #get the frame paths and frames from the frames saved
     frame_paths, frames = frame_extract(tmp_dir_path)
-    num_frame = len(frame_paths)
     
-    print(num_frame)
+    
     h, w, _ = frames[0].shape
     
-    import time
+    
     start_time_human_det = time.time()
     # Get Human detection results.
     det_results, _ = detection_inference(det_config, det_checkpoint,
@@ -199,13 +135,13 @@ async def main(data: dict):
         original_shape=(h, w),
         start_index=0,
         modality='Pose',
-        total_frames=num_frame)
+        total_frames=num_frames)
     num_person = max([len(x['keypoints']) for x in pose_results])
 
     num_keypoint = 17
-    keypoint = np.zeros((num_frame, num_person, num_keypoint, 2),
+    keypoint = np.zeros((num_frames, num_person, num_keypoint, 2),
                         dtype=np.float16)
-    keypoint_score = np.zeros((num_frame, num_person, num_keypoint),
+    keypoint_score = np.zeros((num_frames, num_person, num_keypoint),
                               dtype=np.float16)
     for i, poses in enumerate(pose_results):
         keypoint[i] = poses['keypoints']
@@ -221,12 +157,14 @@ async def main(data: dict):
     model = init_recognizer(config, checkpoint, device)
     start_time_model = time.time()
 
-
     result = inference_recognizer(model, fake_anno)
     
     max_pred_index = result.pred_score.argmax().item()
     action_label = label_map[max_pred_index]
 
+    #Write to a database etc
+    NotImplemented
+    
     print(time.time() - start_time_model)
 
     
