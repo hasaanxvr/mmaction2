@@ -6,7 +6,9 @@ import cv2
 import mmengine
 import numpy as np
 import torch
+from datetime import datetime
 from mmengine import DictAction
+
 
 from mmaction.apis import (detection_inference, inference_recognizer,
                            init_recognizer, pose_inference)
@@ -56,23 +58,41 @@ def save_frames(frames: list, save_dir: str):
         cv2.imwrite(f'{save_dir}/frame_{i}.jpg', frame)
         i+=1
 
+# ----------------------------------------------------------------
+def save_video(frames: list, action_label: str, datetime, score: float):
+
+    fps = 10
+    video_name =f'{datetime}_{action_label}_{score}.mp4'
+
+    dir_path = f'adl-agitation-results/{datetime}_{action_label}_{score}'
+    os.makedirs(dir_path)
+    save_frames(frames,dir_path)
+
+    frame_width, frame_height = frames[0].shape[1], frames[0].shape[0]
+    out = cv2.VideoWriter(f'{dir_path}/{video_name}', cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
+    for frame in frames:
+
+        cv2.putText(frame, action_label, (10, 10), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        out.write(frame)
+    out.release()
 
 
+# ----------------------------------------------------------------
 config_path = 'configs/skeleton/posec3d/custom_skeleton.py'
-checkpoint = 'checkpoints/posec3d_run1.pth'
+checkpoint = 'checkpoints/posec3d_run2.pth'
 det_config = 'demo/demo_configs/faster-rcnn_r50_fpn_2x_coco_infer.py'
 det_checkpoint = ('http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/'
                  'faster_rcnn_r50_fpn_2x_coco/'
                  'faster_rcnn_r50_fpn_2x_coco_'
                  'bbox_mAP-0.384_20200504_210434-a5d8aa15.pth')
 det_cat_id = 0
-pose_config = 'td-hm_hrnet-w32_8xb64-210e_coco-256x192_infer.py'
+pose_config = 'demo/demo_configs/td-hm_hrnet-w32_8xb64-210e_coco-256x192_infer.py'
 pose_checkpoint = ('https://download.openmmlab.com/mmpose/top_down/hrnet/'
                  'hrnet_w32_coco_256x192-c78dce93_20200708.pth')
 det_score_thr = 0.9
 
 label_map_path = 'tools/data/skeleton/label_map_custom.txt'
-device = 'cpu'
+device = 'cuda:0'
 
 
 
@@ -82,6 +102,8 @@ label_map = [x.strip() for x in open(label_map_path).readlines()]
 
 @app.post("/adl-agitation-inference")
 async def main(data: dict):
+
+    total_start_time = time.time()
     
     #create a temporary directory to store the frames
     tmp_dir = tempfile.TemporaryDirectory()
@@ -90,7 +112,7 @@ async def main(data: dict):
     #decode the frames from base64 string to np array
     
     num_frames = len(data['encoded_frames'])
-    if len(num_frames) == 0:
+    if num_frames == 0:
         raise HTTPException(status_code=400, detail='Encoded Frames were not found. Length of the received frames is 0')
     
     
@@ -103,7 +125,7 @@ async def main(data: dict):
     save_frames(frames, tmp_dir_path)
    
     #get the frame paths and frames from the frames saved
-    frame_paths, frames = frame_extract(tmp_dir_path)
+    frame_paths, frames_yeet = frame_extract(tmp_dir_path)
     
     
     h, w, _ = frames[0].shape
@@ -155,17 +177,26 @@ async def main(data: dict):
 
 
     model = init_recognizer(config, checkpoint, device)
-    start_time_model = time.time()
 
+    start_time_model = time.time()
     result = inference_recognizer(model, fake_anno)
+
+    print('PoseC3D Time:', time.time() - start_time_model)
     
     max_pred_index = result.pred_score.argmax().item()
     action_label = label_map[max_pred_index]
 
+    print('Total Time: ', time.time() - total_start_time )
+    #save_video
+    save_video(frames,action_label, datetime.now(), result.pred_score[max_pred_index])
+
+
+
+    
     #Write to a database etc
     NotImplemented
     
-    print(time.time() - start_time_model)
+    
 
     
     tmp_dir.cleanup()
