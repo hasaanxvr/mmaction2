@@ -1064,6 +1064,7 @@ class UniformSampleFrames(BaseTransform):
 
             all_inds.append(inds)
 
+
         return np.concatenate(all_inds)
 
     def _get_test_clips(self, num_frames: int, clip_len: int) -> np.ndarray:

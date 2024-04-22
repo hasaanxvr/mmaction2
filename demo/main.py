@@ -9,6 +9,7 @@ import torch
 from datetime import datetime
 from mmengine import DictAction
 
+import pandas as pd
 
 from mmaction.apis import (detection_inference, inference_recognizer,
                            init_recognizer, pose_inference)
@@ -122,10 +123,10 @@ async def main(data: dict):
         raise HTTPException(status_code=422, detail='Could not decode the strings received. Please ensure that the sent strings are encoded properly')
     
     #save the frame to tmp_dir
-    save_frames(frames, tmp_dir_path)
+    save_frames(frames, 'demo/temp')
    
     #get the frame paths and frames from the frames saved
-    frame_paths, frames_yeet = frame_extract(tmp_dir_path)
+    frame_paths, frames = frame_extract('demo/temp')
     
     
     h, w, _ = frames[0].shape
@@ -188,10 +189,18 @@ async def main(data: dict):
 
     print('Total Time: ', time.time() - total_start_time )
     #save_video
-    save_video(frames,action_label, datetime.now(), result.pred_score[max_pred_index])
+    time_now = datetime.now()
+    save_video(frames,action_label, time_now, result.pred_score[max_pred_index])
 
 
+    ## ------ save csv code -------
+    df = pd.DataFrame()
 
+    df = pd.concat([df, pd.DataFrame([label_map]), pd.DataFrame([result.pred_score])], ignore_index=True)
+
+    df.to_csv(f'adl-agitation-results/{time_now}_{action_label}_{result.pred_score[max_pred_index]}/results.csv')
+    
+    # ----------------------------
     
     #Write to a database etc
     NotImplemented
