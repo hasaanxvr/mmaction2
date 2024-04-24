@@ -46,8 +46,10 @@ def decode_base64_to_image(encoded_string):
 
 def decode_data(encoded_frames: list) -> list:
     frames = []
-    for frame in encoded_frames:
-        frames.append(decode_base64_to_image(frame))
+    for encoded_frame in encoded_frames:
+        decoded_frame = decode_base64_to_image(encoded_frame) 
+        frame = cv2.resize(decoded_frame, (792, 480))
+        frames.append(frame)
         
     return frames
 
@@ -62,7 +64,7 @@ def save_frames(frames: list, save_dir: str):
 # ----------------------------------------------------------------
 def save_video(frames: list, action_label: str, datetime, score: float):
 
-    fps = 10
+    fps = 3
     video_name =f'{datetime}_{action_label}_{score}.mp4'
 
     dir_path = f'adl-agitation-results/{datetime}_{action_label}_{score}'
@@ -107,8 +109,8 @@ async def main(data: dict):
     total_start_time = time.time()
     
     #create a temporary directory to store the frames
-    tmp_dir = tempfile.TemporaryDirectory()
-    tmp_dir_path = tmp_dir.name
+    #tmp_dir = tempfile.TemporaryDirectory()
+    #tmp_dir_path = tmp_dir.name
     
     #decode the frames from base64 string to np array
     
@@ -123,31 +125,38 @@ async def main(data: dict):
         raise HTTPException(status_code=422, detail='Could not decode the strings received. Please ensure that the sent strings are encoded properly')
     
     #save the frame to tmp_dir
-    save_frames(frames, 'demo/temp')
+    #save_frames_start = time.time()
+    #save_frames(frames, 'demo/temp')
+    #save_frames_end = time.time()
    
     #get the frame paths and frames from the frames saved
-    frame_paths, frames = frame_extract('demo/temp')
+    #extract_frames_start = time.time()
+    #frame_paths, frames = frame_extract('demo/temp')
+    #extract_frames_end = time.time()
     
     
     h, w, _ = frames[0].shape
-    
+    frame_loading_time = time.time() - total_start_time
     
     start_time_human_det = time.time()
     # Get Human detection results.
     det_results, _ = detection_inference(det_config, det_checkpoint,
-                                         frame_paths, det_score_thr,
+                                         frames, det_score_thr,
                                          det_cat_id, device)
-    print('Human Detections Time', time.time() - start_time_human_det)
+    
+    end_time_human_det = time.time()
+    
     torch.cuda.empty_cache()
 
     start_time_pose_detection = time.time()
     # Get Pose estimation results.
     pose_results, pose_data_samples = pose_inference(pose_config,
                                                      pose_checkpoint,
-                                                     frame_paths, det_results,
+                                                     frames, det_results,
                                                      device)
     
-    print('Skeletal Detections Time:', time.time() - start_time_pose_detection)
+    end_time_pose_detection = time.time() 
+    
 
     torch.cuda.empty_cache()
 
@@ -182,33 +191,70 @@ async def main(data: dict):
     start_time_model = time.time()
     result = inference_recognizer(model, fake_anno)
 
-    print('PoseC3D Time:', time.time() - start_time_model)
+    end_time_model = time.time()
+
+    #print('Save Frames: ', save_frames_end - save_frames_start)
+    #print('Extract Frames: ', extract_frames_end - extract_frames_start)
+    
     
     max_pred_index = result.pred_score.argmax().item()
     action_label = label_map[max_pred_index]
 
+
+
+    print('Human Detections Time', end_time_human_det - start_time_human_det)
+    print('Skeletal Detections Time:', end_time_pose_detection - start_time_pose_detection)
+    print('PoseC3D Time:',end_time_model - start_time_model)
     print('Total Time: ', time.time() - total_start_time )
-    #save_video
+
+
+    # ----- save_video ------
     time_now = datetime.now()
     save_video(frames,action_label, time_now, result.pred_score[max_pred_index])
 
 
-    ## ------ save csv code -------
-    df = pd.DataFrame()
+    ## ------ save csv for every class + score -------
+    #df = pd.DataFrame()
 
-    df = pd.concat([df, pd.DataFrame([label_map]), pd.DataFrame([result.pred_score])], ignore_index=True)
+    #df = pd.concat([df, pd.DataFrame([label_map]), pd.DataFrame([result.pred_score])], ignore_index=True)
 
-    df.to_csv(f'adl-agitation-results/{time_now}_{action_label}_{result.pred_score[max_pred_index]}/results.csv')
+    #df.to_csv(f'adl-agitation-results/{time_now}_{action_label}_{result.pred_score[max_pred_index]}/results.csv')
     
-    # ----------------------------
+   
+
+
+    ## -------- save csv for top N classes and atomic actions for analysis ------------
+    N = 3
+    result.pred_score = result.pred_score.cpu()
+
+    atomic_actions = ['lie', 'sit', 'stand', 'walk']
+    atomic_scores = [result.pred_score[18], result.pred_score[19], result.pred_score[20], result.pred_score[25]]
+
+    atomic_df = pd.DataFrame({'Class Name': atomic_actions, 'Score': atomic_scores})
+    atomic_df = atomic_df.sort_values(by='Score', ascending=False)
+
+    top_n_indices = sorted(range(len(result.pred_score)), key=lambda i: result.pred_score[i], reverse=True)[:N] 
+    top_n_scores = [result.pred_score[i] for i in top_n_indices] 
+    top_n_labels = [label_map[i] for i in top_n_indices]
+
+    df = pd.DataFrame({'Class Name': top_n_labels, 'Score': top_n_scores}) 
     
-    #Write to a database etc
+    empty_df = pd.DataFrame({'Class Name': [''] * 3, 'Score': [''] * 3})
+
+    df_combined = pd.concat([df, empty_df, atomic_df])
+    
+    df_combined.to_csv(f'adl-agitation-results/{time_now}_{action_label}_{result.pred_score[max_pred_index]}/results_top5.csv', index = False)
+    
+    
+    
+    ## --------Write to a database -------
     NotImplemented
     
     
 
+
     
-    tmp_dir.cleanup()
+    #tmp_dir.cleanup()
 
 
     return 200
