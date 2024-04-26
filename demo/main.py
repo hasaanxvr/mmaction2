@@ -48,8 +48,7 @@ def decode_data(encoded_frames: list) -> list:
     frames = []
     for encoded_frame in encoded_frames:
         decoded_frame = decode_base64_to_image(encoded_frame) 
-        frame = cv2.resize(decoded_frame, (792, 480))
-        frames.append(frame)
+        frames.append(decoded_frame)
         
     return frames
 
@@ -83,11 +82,15 @@ def save_video(frames: list, action_label: str, datetime, score: float):
 # ----------------------------------------------------------------
 config_path = 'configs/skeleton/posec3d/custom_skeleton.py'
 checkpoint = 'checkpoints/posec3d_run2.pth'
-det_config = 'demo/demo_configs/faster-rcnn_r50_fpn_2x_coco_infer.py'
-det_checkpoint = ('http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/'
-                 'faster_rcnn_r50_fpn_2x_coco/'
-                 'faster_rcnn_r50_fpn_2x_coco_'
-                 'bbox_mAP-0.384_20200504_210434-a5d8aa15.pth')
+#det_config = 'demo/demo_configs/faster-rcnn_r50_fpn_2x_coco_infer.py'
+#det_checkpoint = ('http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/'
+#                 'faster_rcnn_r50_fpn_2x_coco/'
+#                 'faster_rcnn_r50_fpn_2x_coco_'
+#                 'bbox_mAP-0.384_20200504_210434-a5d8aa15.pth')
+
+det_config = 'mmdetection/configs/yolox/yolox_s_8xb8-300e_coco.py'
+det_checkpoint = 'mmdetection/configs/yolox/checkpoints/yolox_s_8x8_300e_coco_20211121_095711-4592a793.pth'
+
 det_cat_id = 0
 pose_config = 'demo/demo_configs/td-hm_hrnet-w32_8xb64-210e_coco-256x192_infer.py'
 pose_checkpoint = ('https://download.openmmlab.com/mmpose/top_down/hrnet/'
@@ -123,16 +126,6 @@ async def main(data: dict):
         frames = decode_data(data['encoded_frames'])
     except:
         raise HTTPException(status_code=422, detail='Could not decode the strings received. Please ensure that the sent strings are encoded properly')
-    
-    #save the frame to tmp_dir
-    #save_frames_start = time.time()
-    #save_frames(frames, 'demo/temp')
-    #save_frames_end = time.time()
-   
-    #get the frame paths and frames from the frames saved
-    #extract_frames_start = time.time()
-    #frame_paths, frames = frame_extract('demo/temp')
-    #extract_frames_end = time.time()
     
     
     h, w, _ = frames[0].shape
