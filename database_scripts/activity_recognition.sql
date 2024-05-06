@@ -14,8 +14,8 @@ CREATE TABLE activities (
     score_4 FLOAT,
     action_5 TEXT,
     score_5 FLOAT,
-    sit TEXT,
-    stand TEXT,
+    sit_score FLOAT,
+    stand_score FLOAT,
     lie_score FLOAT,
     walk_score FLOAT
 );
